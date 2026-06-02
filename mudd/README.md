@@ -111,3 +111,100 @@ Renders the session log to terminal. Color coded: CMD in one tone, COMMIT in ano
 
 Every entry is stored with full metadata regardless of display settings/ Storage is the source of truth. Display is a view layer on top. This means future features like filtering searching, or custom exports never require re-engineering the storage layer.
 
+### Stored format (always)
+``` 
+timestamp=2026-05-29T14:32:01 | type=SESSION_START | session=dashboard_logbook
+timestamp=2026-05-29T14:32:04 | type=CMD | value=ssh tp-mudd@dell-server
+timestamp=2026-05-29T14:32:09 | type=CMD | value=cd /opt/n8n
+timestamp=2026-05-29T14:32:15 | type=CMD | value=docker ps
+timestamp=2026-05-29T14:33:01 | type=COMMIT | value=containers were down after reboot — docker wasn't set to restart:always, fixing now
+timestamp=2026-05-29T14:33:12 | type=CMD | value=docker update --restart=always n8n
+timestamp=2026-05-29T14:34:00 | type=SESSION_END | session=dashboard_logbook
+```
+
+### Default display (timestamps off)
+```
+SESSION START - dashboard_logbook
+
+CMD     ssh tp-mudd@dell-server
+CMD     cd /opt/n8n
+CMD     docker ps
+COMMIT  containers were down after reboot; docker wasn't set to restart:always, fixing now
+CMD     docker update --restart=always n8n
+
+SESSION END
+```
+
+### Display with --timestamp=enabled
+```
+SESSION START - dashboard_logbook [2026-05-29 14:32:01]
+
+CMD     [14:32:04]  ssh tp-mudd@dell-server
+CMD     [14:32:09]  cd /opt/n8n
+CMD     [14:32:15]  docker ps
+COMMIT  [14:33:01]  containers were down after reboot — docker wasn't set to restart:always, fixing now
+CMD     [14:33:12]  docker update --restart=always n8n
+ 
+SESSION END  [14:34:00]
+```
+
+---
+
+## What mudd Is Not
+
+- Not a replacement for git or version control
+- Not a team tool; project scoped, lives on individual machines, serves the individual developer
+- Not a documentation generator; it does not write your runbooks or READMEs for you
+- Not a knowledge base or search system
+- Not a deployment or audit tool
+- Nothing changes at the production or team collaboration level
+
+---
+
+## Build Phases
+
+### Phase 1 - Core loop
+- `mudd init` — create `.mudd/` structure, update `.gitignore`
+- `mudd activate -sn <name>` — create session, start passive recorder, open log
+- `mudd commit "<message>"` — write COMMIT entry to active session log
+- `mudd activate -ssid <name>` — resume named session, continue appending
+- `mudd deactivate` — close session, write SESSION END
+- All metadata stored. Raw output. No display polish yet.
+- **Goal: confirm the core loop works end to end**
+### Phase 2 — Display layer
+- `mudd log <name>` — render session to terminal
+- Color-coded CMD vs COMMIT output
+- `--timestamp=enabled` flag
+- **Goal: make the output actually readable**
+### Phase 3 — UX hardening
+- Edge cases: interrupted sessions, crash recovery, missing SESSION_END
+- `mudd sessions` — list all named sessions in current repo
+- Session naming rules — enforce slug format, handle edge cases
+- **Goal: tool is reliable enough for daily use**
+---
+ 
+## Tech Stack
+ 
+- **Language:** Python
+- **Storage:** Flat log files, one per session, stored in `.mudd/sessions/`
+- **Passive recorder:** Shell hook — `PROMPT_COMMAND` for Bash (Phase 1 target), shell-agnostic expansion in later phases
+- **Scope:** Project-local CLI, initialized per repo
+---
+ 
+## Open Questions
+ 
+1. Passive command capture implementation — `PROMPT_COMMAND` hook confirmed for Bash. How does `mudd` inject/remove the hook cleanly on `activate`/`deactivate` without polluting the developer's shell config permanently?
+2. What happens on interrupted sessions (crash, lost connection)? Does SESSION_END get written? Is there a recovery path on next `mudd activate -ssid`?
+3. Session naming — enforce slug format (no spaces) at `activate` time or handle gracefully?
+4. Config file contents — what lives in `.mudd/config`? Shell preference? Display defaults? Color scheme?
+5. Multi-device: sessions are local and private by design. Is there ever a case for the developer to manually push `.mudd/` to a private branch? Out of scope for now but worth holding.
+---
+ 
+## Relationship to ClearMudd
+ 
+Not defined yet. ClearMudd is SSH audit and access intelligence. `mudd` captures annotated command history with developer reasoning. There is an obvious surface area overlap — a tool that logs *what commands ran* and a tool that logs *why those commands ran* are naturally adjacent. The connection may become architectural once both tools exist. Do not force it. Build `mudd` standalone and let the relationship reveal itself.
+ 
+---
+ 
+ 
+*Spec compiled: 2026-05-29 | Version: 0.2 | Status: Pre-build | Next action: Phase 1 implementation*
