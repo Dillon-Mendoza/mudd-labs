@@ -19,7 +19,7 @@ Tools are deployed and tested across a self-managed Tailscale mesh of Linux devi
 ## Status
 
 | Project | Status | Updated |
-|---|---|
+|---|---|---|
 | `clearmudd` | Active development — parser complete, expanding features | 2026 June 4th |
 | `mudd` | Specced, build not started | 2026 June 4th |
 | `dashboard` | Early stage — Django app running, not yet configured | 2026 June 4th |
