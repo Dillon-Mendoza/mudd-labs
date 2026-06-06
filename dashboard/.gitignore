@@ -1,7 +1,21 @@
-/mysite*
+# Python
+*.pyc
+*~
+__pycache__
 
-/myvenv*
+# Env
+.env
+myvenv/
+venv/
 
-/db.sqlite3
+# Database
+db.sqlite3
 
-/dash
+# Static folder at project root
+/static/
+
+
+# Visual Studio
+.vscode/
+.history/
+*.code-workspace
