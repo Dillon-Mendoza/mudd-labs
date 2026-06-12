@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-s%(^u)13(c910!g*d9=x^o2ms1t%q4iv2$3)b^g2c4t5onj3(%
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.pythonanywhere.com', 'thinkpad.tail907d54.ts.net']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.pythonanywhere.com']
 
 
 # Application definition
@@ -117,3 +117,5 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'static'
+lOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/'

@@ -65,3 +65,15 @@ h4 {
     color: #ffffff;
     background-color: #C25100;
 }
+
+#logout {
+    font-family: 'lobster', cursive;
+}
+
+small a,
+small a:hover,
+small a:visited {
+    font-size: 15pt;
+    color: #ffffff;
+    text-decoration: none;
+}
