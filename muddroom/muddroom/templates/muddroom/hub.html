@@ -1,5 +1,17 @@
 {% extends 'muddroom/base.html' %}
 
 {% block content %}
-    <h1>Muddroom</h1>
+    <div class="row">
+        {% for service in services %}
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ service.icon }} {{ service.name }}</h5>
+                        <p class="card-text">{{ service.description }}</p>
+                        <a href="{{ service.url }}" class="btn btn-primary" target="_blank">Open</a>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
 {% endblock %}
