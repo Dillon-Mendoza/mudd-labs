@@ -32,4 +32,10 @@ def webhook_receiver(request):
 
 def hub(request):
     services = Service.objects.filter(is_active=True)
-    return render(request, 'muddroom/hub.html', {'services': services})
+    devices = Device.objects.all()
+
+    hub = {
+        'services': services,
+        'devices': devices
+    }
+    return render(request, 'muddroom/hub.html', hub)

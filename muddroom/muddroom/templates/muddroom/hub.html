@@ -1,6 +1,24 @@
 {% extends 'muddroom/base.html' %}
+{% load tz %}
 
 {% block content %}
+    <div class="row">
+        {% for device in devices %}
+            <div class="col-md-4">
+                <div class="card-mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ device.name }}</h5>
+                        <hr>
+                        <p class="card-text">Device Reachable: {{ device.is_reachable }} <br> Last Checked Time: {{ device.last_checked }}</p>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+        <hr>
+        <hr>
+
     <div class="row">
         {% for service in services %}
             <div class="col-md-4">
