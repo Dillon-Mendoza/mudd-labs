@@ -1,35 +1,36 @@
 {% extends 'muddroom/base.html' %}
-{% load tz %}
 
 {% block content %}
-    <div class="row">
-        {% for device in devices %}
-            <div class="col-md-4">
-                <div class="card-mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">{{ device.name }}</h5>
-                        <hr>
-                        <p class="card-text">Device Reachable: {{ device.is_reachable }} <br> Last Checked Time: {{ device.last_checked }}</p>
-                    </div>
-                </div>
-            </div>
-        {% endfor %}
-    </div>
 
-        <hr>
-        <hr>
-
-    <div class="row">
-        {% for service in services %}
-            <div class="col-md-4">
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title">{{ service.icon }} {{ service.name }}</h5>
-                        <p class="card-text">{{ service.description }}</p>
-                        <a href="{{ service.url }}" class="btn btn-primary" target="_blank">Open</a>
-                    </div>
-                </div>
-            </div>
-        {% endfor %}
+<p class="section-label">Devices</p>
+<div class="card-grid">
+    {% for device in devices %}
+    <div class="mudd-card">
+        <div class="device-meta">
+            <span class="status-dot {% if device.is_reachable %}reachable{% else %}unreachable{% endif %}"></span>
+            <span class="status-label {% if device.is_reachable %}reachable{% else %}unreachable{% endif %}">
+                {% if device.is_reachable %}Reachable{% else %}Unreachable{% endif %}
+            </span>
+        </div>
+        <p class="card-title">{{ device.name }}</p>
+        {% if device.last_checked %}
+        <p class="last-checked">Checked at: {{ device.last_checked}}</p>
+        {% endif %}
     </div>
+    {% endfor %}
+</div>
+
+<hr class="section-divider">
+
+<p class="section-label">Services</p>
+<div class="card-grid">
+    {% for service in services %}
+    <div class="mudd-card">
+        <p class="card-title">{{ service.icon }} {{ service.name }}</p>
+        <p class="card-desc">{{ service.description }}</p>
+        <a href="{{ service.url }}" class="card-action" target="_blank">Open →</a>
+    </div>
+    {% endfor %}
+</div>
+
 {% endblock %}
