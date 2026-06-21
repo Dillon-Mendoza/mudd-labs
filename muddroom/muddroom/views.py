@@ -20,11 +20,14 @@ def webhook_receiver(request):
         device_name = parsed.get('device')
         device_ip = parsed.get('ip')
 
-        device = Device.objects.get(name=device_name)
-        if device_status == "CONFIRMED":
-            device.is_reachable = True
-        else:
-            device.is_reachable = False
+        try:
+            device = Device.objects.get(name=device_name)
+            if device_status == "CONFIRMED":
+                device.is_reachable = True
+            else:
+                device.is_reachable = False
+        except Device.DoesNotExist:
+            continue
         device.last_checked = timezone.now()
         device.save()
 
