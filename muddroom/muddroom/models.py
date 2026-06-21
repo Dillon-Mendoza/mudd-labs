@@ -18,7 +18,7 @@ class Device(models.Model):
     name = models.CharField(max_length=200)
     tailscale_ip = models.GenericIPAddressField()
     is_reachable = models.BooleanField(default=True)
-    last_checked = models.TimeField(null=True, blank=True)
+    last_checked = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.name

@@ -1,4 +1,5 @@
 {% extends 'muddroom/base.html' %}
+{% load tz %}
 
 {% block content %}
 
@@ -14,7 +15,7 @@
         </div>
         <p class="card-title">{{ device.name }}</p>
         {% if device.last_checked %}
-        <p class="last-checked">Checked at: {{ device.last_checked}}</p>
+        <p class="last-checked">Checked at: {{ device.last_checked|localtime|date:"M j, g:i a" }}</p>
         {% endif %}
     </div>
     {% endfor %}
