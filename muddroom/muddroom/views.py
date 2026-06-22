@@ -6,6 +6,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
+from django.contrib.auth.decorators import login_required
 
 @csrf_exempt
 @require_POST
@@ -33,6 +34,7 @@ def webhook_receiver(request):
 
     return JsonResponse({'status': 'ok'})
 
+@login_required
 def hub(request):
     services = Service.objects.filter(is_active=True)
     devices = Device.objects.all()
