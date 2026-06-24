@@ -44,7 +44,7 @@ def service_webhook(request):
     
     for parsed in service_n8n:
         service_name = parsed.get('name')
-        service_active = parsed.get('active')
+        service_active = parsed.get('status')
         service_last_checked = parsed.get('last_checked')
 
         try:
