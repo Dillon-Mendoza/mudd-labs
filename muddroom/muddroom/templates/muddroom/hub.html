@@ -30,6 +30,7 @@
         <p class="card-title">{{ service.icon }} {{ service.name }}</p>
         <p class="card-desc">{{ service.description }}</p>
         <a href="{{ service.url }}" class="card-action" target="_blank">Open →</a>
+        <p class="last-checked">Checked at: {{ service.last_checked|localtime|date:"M j, g:i a" }}</p>
     </div>
     {% endfor %}
 </div>

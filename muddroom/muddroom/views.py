@@ -34,9 +34,35 @@ def webhook_receiver(request):
 
     return JsonResponse({'status': 'ok'})
 
+@csrf_exempt
+@require_POST
+def service_webhook(request):
+    try:
+        service_n8n = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    
+    for parsed in service_n8n:
+        service_name = parsed.get('name')
+        service_active = parsed.get('active')
+        service_last_checked = parsed.get('last_checked')
+
+        try:
+            service = Service.objects.get(name=service_name)
+            if service_active == "CONFIRMED":
+                service.port_reachable = True
+            else:
+                service.port_reachable = False
+        except Service.DoesNotExist:
+            continue
+        service.last_checked = timezone.now()
+        service.save()
+    
+    return JsonResponse({'status': 'ok'})
+
 @login_required
 def hub(request):
-    services = Service.objects.filter(is_active=True)
+    services = Service.objects.filter(is_active=True, port_reachable=True)
     devices = Device.objects.all()
 
     hub = {

@@ -9,6 +9,8 @@ class Service(models.Model):
     description = models.CharField(max_length=200)
     icon = models.CharField(max_length=200)
     is_active = models.BooleanField(default=True)
+    last_checked = models.DateTimeField(null=True, blank=True)
+    port_reachable = models.BooleanField(default=True)
 
     def __str__(self):
         return self.name
