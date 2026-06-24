@@ -1,6 +1,6 @@
 # Muddroom
 
-A custom homelab dashboard built on Django, served over Tailscale. Named after a mudroom — the entry point where everything routes through. Displays live device reachability and quick-launch links to homelab services.
+A custom homelab dashboard built on Django, served over Tailscale. Named after a mudroom: the entry point where everything routes through. Displays live device reachability, service port health, and quick-launch links to homelab services.
 
 **Status:** Active development on ThinkPad (`tp-mudd`). Production migration to `dell-ubuntu` planned post-feature-complete.
 
@@ -95,6 +95,8 @@ SECRET_KEY=<generate-with-python-secrets>
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1,<TAILSCALE-IP-T0>,<TAILSCALE-HOSTNAME-T0>
 CSRF_TRUSTED_ORIGINS=https://<TAILSCALE-HOSTNAME-T0>
+LOGIN_URL=/accounts/login/
+LOGIN_REDIRECT_URL=/
 ```
 
 ### 3. Run migrations
@@ -107,7 +109,6 @@ python manage.py migrate
 
 ```bash
 python manage.py createsuperuser
-# Username: <admin-username>
 ```
 
 ### 5. Collect static files
@@ -138,6 +139,14 @@ Note: This rule does not persist across reboots. Re-add each session until Djang
 
 ---
 
+## Authentication
+
+The hub view is protected by `@login_required`. Unauthenticated requests redirect to `/accounts/login/`.
+
+`LOGIN_URL` must be uppercase in `settings.py` — `lOGIN_URL` is silently ignored by Django.
+
+---
+
 ## Django Admin Setup
 
 After setup, log into `/admin` and add:
@@ -159,11 +168,15 @@ Add one `Service` record per homelab service:
 
 | Field | Value |
 |---|---|
-| name | Display name |
+| name | Must match `port.conf` exactly — case sensitive |
 | url | Full URL including port |
 | description | Short description |
 | icon | Emoji |
-| is_active | `True` to display on hub |
+| is_active | `True` to display on hub — manual display control |
+| port_reachable | Default `True` — populated by webhook |
+| last_checked | Leave blank — populated by webhook |
+
+Services only render on the hub if both `is_active=True` and `port_reachable=True`.
 
 ---
 
@@ -188,13 +201,15 @@ class Service(models.Model):
     description = models.CharField(max_length=200)
     icon = models.CharField(max_length=200)
     is_active = models.BooleanField(default=True)
+    port_reachable = models.BooleanField(default=True)
+    last_checked = models.DateTimeField(null=True, blank=True)
 ```
 
 ---
 
-## Webhook Receiver
+## Webhook Endpoints
 
-**Endpoint:** `POST /webhooks/receive/`
+### Device Health — `POST /webhooks/receive/`
 
 **Authentication:** None (CSRF exempt — internal Tailscale network only)
 
@@ -210,30 +225,51 @@ class Service(models.Model):
 **Behavior:**
 - `CONFIRMED` → sets `is_reachable = True`
 - Any other status → sets `is_reachable = False`
-- Device name not found in database → skips that device, continues processing remaining devices
-- Updates `last_checked` timestamp on every processed device
+- Device name not found → skips, continues processing
+- Updates `last_checked` on every processed device
+
+### Service Health — `POST /service-webhooks/receive/`
+
+**Authentication:** None (CSRF exempt — internal Tailscale network only)
+
+**Expected payload:**
+
+```json
+[
+  {"status": "CONFIRMED", "name": "Netdata", "port": "19999"},
+  {"status": "UNCONFIRMED", "name": "Gitea", "port": "3000"}
+]
+```
+
+**Behavior:**
+- `CONFIRMED` → sets `port_reachable = True`
+- Any other status → sets `port_reachable = False`
+- Service name not found → skips, continues processing
+- Updates `last_checked` on every processed service
 
 ---
 
-## n8n Workflow — Muddroom Device Monitor
+## n8n Workflows
 
-**Host:** `dell-fedora` (Docker)  
-**Schedule:** Every 15 minutes  
+**Host:** `dell-fedora` (Docker)
+**Schedule:** Every 15 minutes
 **Script mount:** `/usr/local/bin/muddlabs/muddroom/` → `/scripts/muddroom/`
 
-### Workflow nodes
+Both workflows share a single Schedule Trigger, splitting into two parallel branches after the trigger node.
+
+### Workflow 1 — Device Monitor
 
 ```
 Schedule Trigger
   → Execute Command (sh /scripts/muddroom/device-ping.sh)
   → Code in JavaScript (parse stdout into JSON array)
-  → HTTP Request (POST to Django webhook)
+  → HTTP Request (POST to /webhooks/receive/)
   → If ($json.status == "ok")
       True branch: end (no action)
       False branch: Aggregate → HTTP Request (Discord alert)
 ```
 
-### Code node
+#### Code node
 
 ```javascript
 let text = $input.first().json.stdout;
@@ -246,19 +282,38 @@ return result.map(line => {
 });
 ```
 
-### HTTP Request node (Django)
+### Workflow 2 — Service Port Check
+
+```
+Schedule Trigger
+  → Execute Command (sh /scripts/muddroom/port-scan.sh)
+  → Code in JavaScript (parse stdout into JSON array)
+  → HTTP Request (POST to /service-webhooks/receive/)
+  → If ($json.status == "ok")
+      True branch: end (no action)
+      False branch: Aggregate → HTTP Request (Discord alert)
+```
+
+#### Code node
+
+```javascript
+let text = $input.first().json.stdout;
+let split = text.split('\n');
+let result = split.filter(line => line.trim());
+
+return result.map(line => {
+  const parts = line.split(' | ');
+  return { json: { status: parts[0], name: parts[1], port: parts[2] } };
+});
+```
+
+#### HTTP Request node (Django)
 
 ```
 Method: POST
-URL: https://<TAILSCALE-HOSTNAME-T0>/webhooks/receive/
+URL: https://<TAILSCALE-HOSTNAME-T0>/service-webhooks/receive/
 Body Content Type: JSON
 Body: {{ $input.all().map(item => item.json) }}
-```
-
-### Discord alert body
-
-```json
-{ "content": "Muddroom webhook failed — Django unreachable" }
 ```
 
 ---
@@ -271,17 +326,21 @@ Body: {{ $input.all().map(item => item.json) }}
 /usr/local/bin/muddlabs/
 └── muddroom/
     ├── device-ping.sh
-    └── device.conf
+    ├── device.conf
+    ├── port-scan.sh
+    └── port.conf
 ```
 
 ### Permissions
 
 ```bash
 chmod +x /usr/local/bin/muddlabs/muddroom/device-ping.sh
+chmod +x /usr/local/bin/muddlabs/muddroom/port-scan.sh
 chmod 644 /usr/local/bin/muddlabs/muddroom/device.conf
+chmod 644 /usr/local/bin/muddlabs/muddroom/port.conf
 ```
 
-Note: `device.conf` is 644 (not 600) — n8n container runs as non-root and requires read access.
+Note: `.conf` files are 644 (not 600) — n8n container runs as non-root and requires read access.
 
 ### `device.conf` format
 
@@ -291,6 +350,31 @@ Note: `device.conf` is 644 (not 600) — n8n container runs as non-root and requ
 ```
 
 Device names must exactly match Django admin `Device.name` — case sensitive.
+
+### `port.conf` format
+
+```
+<SERVICE-NAME>,<TAILSCALE-IP>,<PORT>
+```
+
+Service names must exactly match Django admin `Service.name` — case sensitive.
+
+### `port-scan.sh`
+
+```bash
+#!/bin/sh
+
+while IFS= read -r line; do
+  name=$(echo $line | cut -d ',' -f 1)
+  ip=$(echo $line | cut -d ',' -f 2)
+  port=$(echo $line | cut -d ',' -f 3)
+  if nc -z -w3 $ip $port; then
+      echo "CONFIRMED | $name | $port"
+  else
+      echo "UNCONFIRMED | $name | $port"
+  fi
+done < /usr/local/bin/muddlabs/muddroom/port.conf
+```
 
 ---
 
@@ -318,7 +402,6 @@ Pulled directly from the Mudd Labs logo palette.
 | Tailscale ACL | Temporary `tag:t1 → tag:t0 tcp:8000` grant added for dev — remove after Django migrated to `dell-ubuntu` |
 | `last_checked` displays UTC in Django admin | Cosmetic only — hub displays correct local time |
 | Django running as dev server | Must migrate to `dell-ubuntu` with Gunicorn + systemd for production |
-| Login gate | Auth exists but hub is currently accessible without login — `@login_required` decorator needed on `hub` view |
 
 ---
 
@@ -336,8 +419,6 @@ Pulled directly from the Mudd Labs logo palette.
 
 ## Immediate Next Steps
 
-1. **Add `@login_required` to `hub` view** — enforce authentication, redirect to `/accounts/login/`
-2. **Build Workflow 3 (port-check)** — service health via `nc -z -w3 $ip $port`, POST to separate endpoint or extend webhook receiver
-3. **Add `requests` library** — build Netdata API calls in `hub` view, pull CPU/RAM/disk per device
-4. **Render live Netdata metrics** on device cards
-5. **Migrate Django to `dell-ubuntu`** — Gunicorn + systemd, update `ALLOWED_HOSTS`, configure Tailscale Serve on `dell-ubuntu`, remove temporary ACL rule and firewall exception
+1. **Add `requests` library** — build Netdata API calls in `hub` view, pull CPU/RAM/disk per device
+2. **Render live Netdata metrics** on device cards
+3. **Migrate Django to `dell-ubuntu`** — Gunicorn + systemd, update `ALLOWED_HOSTS`, configure Tailscale Serve on `dell-ubuntu`, remove temporary ACL rule and firewall exception
